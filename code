@@ -1,0 +1,87 @@
+#importing things
+import pyglet
+import random
+import time
+import math
+
+#shortcuts for later uses 
+from pyglet import shapes
+from pyglet.window import key
+
+#initializing the window for pyglet
+window = pyglet.window.Window(width=960, height=540)
+
+
+#initializing the list of planets, gravity coefficient, and our timestep
+planets = []
+G = 2000
+dt = 0.05
+
+#planet class
+class astralBody():
+    def __init__(self, mass, radius, x, y, velocity, fixed = False):
+        self.fixed = fixed
+        self.vx = velocity
+        self.vy = random.uniform(-2, 2)
+        self.x = x
+        self.y = y
+        self.mass = mass
+        self.radius = radius
+        self.circle = shapes.Circle(x,y,radius)
+    def draw(self):
+        self.circle.draw()
+
+#initializing the list of planets, gravity coefficient, and our timestep
+sun = astralBody(5000, 20, window.height//2, window.width//2, 0, fixed=True)
+
+#to calculate and update velocities
+def physicFunction():
+    for bodyA in planets:
+        if bodyA.fixed == True:
+            continue
+        bodyA.ax = 0
+        bodyA.ay = 0
+
+        for bodyB in planets:
+            if bodyB != bodyA:
+                dx = bodyB.x - bodyA.x
+                dy = bodyB.y - bodyA.y
+                distance = math.sqrt(dx**2 + dy**2)
+                distance = max(distance, 5)
+                if distance == 0:
+                    continue
+
+                dx /= distance
+                dy /= distance
+
+                force = (bodyA.mass * bodyB.mass) / (distance**2) * G #gravity coefficient
+
+                bodyA.ax += force * dx / bodyA.mass
+                bodyA.ay += force * dy / bodyA.mass
+
+        bodyA.vx += bodyA.ax * dt
+        bodyA.vy += bodyA.ay * dt
+
+        bodyA.x += bodyA.vx * dt
+        bodyA.y += bodyA.vy * dt
+
+        bodyA.circle.x = bodyA.x
+        bodyA.circle.y = bodyA.y
+
+
+#initializing the window and drawing the objects and labels
+@window.event
+def on_key_press(symbol, modifiers):
+    vx = random.uniform(-2, 2)
+    if symbol == key.SPACE:
+        planets.append(astralBody(50, 50, random.randint(0,960), random.randint(0,540), vx))
+
+@window.event
+def on_draw():
+    window.clear()
+    physicFunction()
+    for planet in planets:
+        planet.draw()
+
+#running the app
+pyglet.app.run()
