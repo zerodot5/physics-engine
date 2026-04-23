@@ -1,7 +1,6 @@
 #importing things
 import pyglet
 import random
-import time
 import math
 
 #shortcuts for later uses 
@@ -19,8 +18,7 @@ dt = 0.05
 
 #planet class
 class astralBody():
-    def __init__(self, mass, radius, x, y, velocity, fixed = False):
-        self.fixed = fixed
+    def __init__(self, mass, radius, x, y, velocity):
         self.vx = velocity
         self.vy = random.uniform(-2, 2)
         self.x = x
@@ -31,52 +29,57 @@ class astralBody():
     def draw(self):
         self.circle.draw()
 
-#initializing the list of planets, gravity coefficient, and our timestep
-sun = astralBody(5000, 20, window.height//2, window.width//2, 0, fixed=True)
-
 #to calculate and update velocities
 def physicFunction():
     for bodyA in planets:
-        if bodyA.fixed == True:
-            continue
+        #resetting acceleration for each body
         bodyA.ax = 0
         bodyA.ay = 0
 
         for bodyB in planets:
             if bodyB != bodyA:
+                #calculating the distance between the two bodies
                 dx = bodyB.x - bodyA.x
                 dy = bodyB.y - bodyA.y
+                #avoiding singularity and ensuring a minimum distance to prevent extreme forces
                 distance = math.sqrt(dx**2 + dy**2)
                 distance = max(distance, 5)
                 if distance == 0:
                     continue
-
+                #normalizing the vector
                 dx /= distance
                 dy /= distance
 
+                #gravity formula: F = G * (m1 * m2) / r^2
                 force = (bodyA.mass * bodyB.mass) / (distance**2) * G #gravity coefficient
 
+                #updating the acceleration using force and our normalized vector
                 bodyA.ax += force * dx / bodyA.mass
                 bodyA.ay += force * dy / bodyA.mass
 
+        #velocity is acceleration times the time step variable
         bodyA.vx += bodyA.ax * dt
         bodyA.vy += bodyA.ay * dt
 
+        #changing the position by velocity times the time step variable
         bodyA.x += bodyA.vx * dt
         bodyA.y += bodyA.vy * dt
 
+        #actually changing the circle's position to match the new x and y
         bodyA.circle.x = bodyA.x
         bodyA.circle.y = bodyA.y
 
 
 #initializing the window and drawing the objects and labels
 @window.event
+#whenever the space key is pressed
 def on_key_press(symbol, modifiers):
     vx = random.uniform(-2, 2)
     if symbol == key.SPACE:
         planets.append(astralBody(50, 50, random.randint(0,960), random.randint(0,540), vx))
 
 @window.event
+#whenever a frame is drawn
 def on_draw():
     window.clear()
     physicFunction()
