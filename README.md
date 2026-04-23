@@ -12,5 +12,4 @@ X# add a way to change the gravity coefficient and time step variable
 # zoom and pan?
 X# grid background to help see movement
 # ability to follow planets in their orbits?
-# proper elliptical orbits -> automatically set mass and velocity for orbit?
 X# if trails not replaced, optimize them to stop lagging with multiple objects -> optimized using batching
