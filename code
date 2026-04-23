@@ -1,13 +1,4 @@
-# things to do
-# pause and resume? -> maybe just set dt to 0?
-# planet colors based on mass/velocity/random
-# add a way to add planets with different masses and velocities
-# add a way to reset the simulation -> button or key
-# add a way to change the gravity coefficient and time step variable -> sliders/inputs
-# zoom and pan?
-# proper elliptical orbits -> to replace trails?
-
-#importing things
+#importing required modules
 import pyglet
 import random
 import math
@@ -16,38 +7,40 @@ import math
 from pyglet import shapes
 from pyglet.window import key
 
-#initializing the window for pyglet
-window = pyglet.window.Window(width=960, height=540)
-
-
-#initializing the list of planets, gravity coefficient, and our timestep
+#initializing the list of planets, gravity coefficient, and our timestep (also our pause toggle)
 planets = []
-G = 2000
-dt = 0.01
+G = float(input("Enter the gravity coefficient (default is 2000): "))
+dt = float(input("Enter the time step (default is 0.5): "))
+tick = True
+
+#initializing the window for pyglet
+window = pyglet.window.Window(width=1920, height=1080)
 
 #planet class
 class astralBody():
-    def __init__(self, mass, radius, x, y, velocity):
-        self.trail = []
-        self.max_trail = 10000
+    def __init__(self, mass, radius, x, y, velocity, fixed):
+        self.fixed = fixed
+        self.batch = pyglet.graphics.Batch()
+        self.trailDots = []
+        self.max_trail = 500
         self.vx = velocity
         self.vy = random.uniform(-2, 2)
         self.x = x
         self.y = y
         self.mass = mass
         self.radius = radius
-        self.circle = shapes.Circle(x,y,radius)
+        self.circle = shapes.Circle(x, y, radius, batch=self.batch)
+        self.color = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
+        self.circle.color = self.color
 
     def draw(self):
-        for i in range(1, len(self.trail)):
-            x1, y1 = self.trail[i-1]
-            x2, y2 = self.trail[i]
-
-            pyglet.shapes.Line(x1,y1, x2, y2).draw()
-        self.circle.draw() 
+        self.batch.draw()
 
 #to calculate and update velocities
 def physicFunction():
+    #checking if sim is paused
+    if not tick:
+        return
     #stored planets for deletion later
     to_remove = []
 
@@ -72,16 +65,19 @@ def physicFunction():
                 continue
 
             if distance < bodyA.radius + bodyB.radius:
-                #conserving momentum
-                bodyA.vx = (bodyA.mass * bodyA.vx + bodyB.mass * bodyB.vx) / (bodyA.mass + bodyB.mass)
-                bodyA.vy = (bodyA.mass * bodyA.vy + bodyB.mass * bodyB.vy) / (bodyA.mass + bodyB.mass)
-                #combining masses
-                bodyA.mass += bodyB.mass
-                #new radius with new mass
-                bodyA.radius = math.sqrt(bodyA.mass)
-                #getting rid of old planet
-                to_remove.append(bodyB)
-                continue
+                #conserving momentums
+                if not bodyA.fixed:
+                    bodyA.vx = (bodyA.mass * bodyA.vx + bodyB.mass * bodyB.vx) / (bodyA.mass + bodyB.mass)
+                    bodyA.vy = (bodyA.mass * bodyA.vy + bodyB.mass * bodyB.vy) / (bodyA.mass + bodyB.mass)
+                if bodyA.mass > bodyB.mass:
+                    #combining masses
+                    bodyA.mass += bodyB.mass
+                    #new radius with new mass
+                    bodyA.radius = math.sqrt(bodyA.mass)
+                    bodyA.circle.radius = bodyA.radius
+                    #getting rid of old planet
+                    to_remove.append(bodyB)
+                    continue
             
             #normalizing the vector
             dx /= distance
@@ -91,40 +87,68 @@ def physicFunction():
             force = (bodyA.mass * bodyB.mass) / (distance**2) * G #gravity coefficient
 
             #updating the acceleration using force and our normalized vector
-            bodyA.ax += force * dx / bodyA.mass
-            bodyA.ay += force * dy / bodyA.mass
+            if not bodyA.fixed:
+                bodyA.ax += force * dx / bodyA.mass
+                bodyA.ay += force * dy / bodyA.mass
+            if not bodyB.fixed:
+                bodyB.ax -= force * dx / bodyB.mass
+                bodyB.ay -= force * dy / bodyB.mass
 
     for body in to_remove:
                 if body in planets:
                     planets.remove(body)
 
     for body in planets:
-        #velocity is acceleration times the time step variable
-        body.vx += body.ax * dt
-        body.vy += body.ay * dt
+        if not body.fixed:
+            #velocity is acceleration times the time step variable
+            body.vx += body.ax * dt
+            body.vy += body.ay * dt
 
-        #changing the position by velocity times the time step variable
-        body.x += body.vx * dt
-        body.y += body.vy * dt
+            #changing the position by velocity times the time step variable
+            body.x += body.vx * dt
+            body.y += body.vy * dt
 
-        #actually changing the circle's position to match the new x and y
-        body.circle.x = body.x
-        body.circle.y = body.y
+            #actually changing the circle's position to match the new x and y
+            body.circle.x = body.x
+            body.circle.y = body.y
 
-        body.trail.append((body.x, body.y))
+        dot = shapes.Circle(body.x, body.y, 1.5, batch=body.batch)
+        dot.color = body.color
+        body.trailDots.append(dot)
 
-        if len(body.trail) > body.max_trail:
-            body.trail.pop(0)
-
-    
+        if len(body.trailDots) > body.max_trail:
+            old = body.trailDots.pop(0)
+            old.delete()
 
 #initializing the window and drawing the objects and labels
 @window.event
 #whenever the space key is pressed
 def on_key_press(symbol, modifiers):
-    vx = random.uniform(-2, 2)
-    if symbol == key.SPACE:
-        planets.append(astralBody(500, 50, random.randint(0,960), random.randint(0,540), vx))
+    global tick;
+    if symbol == key.P:
+        if tick:
+            tick = False
+            print("paused")
+        else:
+            tick = True
+            print("resumed")
+    if symbol == key.ESCAPE:
+        window.close()
+        print("exiting program")
+    if symbol == key.C:
+        planets.clear()
+        print("cleared planets")
+
+@window.event
+def on_mouse_press(x, y, button, modifiers):
+    
+    if button == pyglet.window.mouse.LEFT:
+        vx = float(input("Enter the initial velocity: "))
+        tempMass = float(input("Enter the mass for your planet: "))
+        planets.append(astralBody(tempMass, math.sqrt(tempMass), x, y, vx, False))
+    if button == pyglet.window.mouse.RIGHT:
+        tempMass = float(input("Enter the mass for your star: "))
+        planets.append(astralBody(tempMass, math.sqrt(tempMass), x, y, 0, True))
 
 @window.event
 #whenever a frame is drawn
