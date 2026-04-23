@@ -14,11 +14,13 @@ window = pyglet.window.Window(width=960, height=540)
 #initializing the list of planets, gravity coefficient, and our timestep
 planets = []
 G = 2000
-dt = 0.05
+dt = 0.01
 
 #planet class
 class astralBody():
     def __init__(self, mass, radius, x, y, velocity):
+        self.trail = []
+        self.max_trail = 10000
         self.vx = velocity
         self.vy = random.uniform(-2, 2)
         self.x = x
@@ -26,49 +28,86 @@ class astralBody():
         self.mass = mass
         self.radius = radius
         self.circle = shapes.Circle(x,y,radius)
+
     def draw(self):
-        self.circle.draw()
+        for i in range(1, len(self.trail)):
+            x1, y1 = self.trail[i-1]
+            x2, y2 = self.trail[i]
+
+            pyglet.shapes.Line(x1,y1, x2, y2).draw()
+        self.circle.draw() 
 
 #to calculate and update velocities
 def physicFunction():
-    for bodyA in planets:
-        #resetting acceleration for each body
-        bodyA.ax = 0
-        bodyA.ay = 0
+    #stored planets for deletion later
+    to_remove = []
 
-        for bodyB in planets:
-            if bodyB != bodyA:
-                #calculating the distance between the two bodies
-                dx = bodyB.x - bodyA.x
-                dy = bodyB.y - bodyA.y
-                #avoiding singularity and ensuring a minimum distance to prevent extreme forces
-                distance = math.sqrt(dx**2 + dy**2)
-                distance = max(distance, 5)
-                if distance == 0:
-                    continue
-                #normalizing the vector
-                dx /= distance
-                dy /= distance
+    #resetting the acceleration for each body
+    for body in planets:
+        body.ax = 0
+        body.ay = 0
 
-                #gravity formula: F = G * (m1 * m2) / r^2
-                force = (bodyA.mass * bodyB.mass) / (distance**2) * G #gravity coefficient
+    for i in range(len(planets)):
+        for j in range(i + 1, len(planets)):
+            bodyA = planets[i]
+            bodyB = planets[j]
 
-                #updating the acceleration using force and our normalized vector
-                bodyA.ax += force * dx / bodyA.mass
-                bodyA.ay += force * dy / bodyA.mass
+            #calculating the distance between the two bodies
+            dx = bodyB.x - bodyA.x
+            dy = bodyB.y - bodyA.y
+            #avoiding singularity
+            distance = math.sqrt(dx**2 + dy**2)
 
+
+            if distance == 0:
+                continue
+
+            if distance < bodyA.radius + bodyB.radius:
+                #conserving momentum
+                bodyA.vx = (bodyA.mass * bodyA.vx + bodyB.mass * bodyB.vx) / (bodyA.mass + bodyB.mass)
+                bodyA.vy = (bodyA.mass * bodyA.vy + bodyB.mass * bodyB.vy) / (bodyA.mass + bodyB.mass)
+                #combining masses
+                bodyA.mass += bodyB.mass
+                #new radius with new mass
+                bodyA.radius = math.sqrt(bodyA.mass)
+                #getting rid of old planet
+                to_remove.append(bodyB)
+                continue
+            
+            #normalizing the vector
+            dx /= distance
+            dy /= distance
+
+            #gravity formula: F = G * (m1 * m2) / r^2
+            force = (bodyA.mass * bodyB.mass) / (distance**2) * G #gravity coefficient
+
+            #updating the acceleration using force and our normalized vector
+            bodyA.ax += force * dx / bodyA.mass
+            bodyA.ay += force * dy / bodyA.mass
+
+    for body in to_remove:
+                if body in planets:
+                    planets.remove(body)
+
+    for body in planets:
         #velocity is acceleration times the time step variable
-        bodyA.vx += bodyA.ax * dt
-        bodyA.vy += bodyA.ay * dt
+        body.vx += body.ax * dt
+        body.vy += body.ay * dt
 
         #changing the position by velocity times the time step variable
-        bodyA.x += bodyA.vx * dt
-        bodyA.y += bodyA.vy * dt
+        body.x += body.vx * dt
+        body.y += body.vy * dt
 
         #actually changing the circle's position to match the new x and y
-        bodyA.circle.x = bodyA.x
-        bodyA.circle.y = bodyA.y
+        body.circle.x = body.x
+        body.circle.y = body.y
 
+        body.trail.append((body.x, body.y))
+
+        if len(body.trail) > body.max_trail:
+            body.trail.pop(0)
+
+    
 
 #initializing the window and drawing the objects and labels
 @window.event
@@ -76,7 +115,7 @@ def physicFunction():
 def on_key_press(symbol, modifiers):
     vx = random.uniform(-2, 2)
     if symbol == key.SPACE:
-        planets.append(astralBody(50, 50, random.randint(0,960), random.randint(0,540), vx))
+        planets.append(astralBody(500, 50, random.randint(0,960), random.randint(0,540), vx))
 
 @window.event
 #whenever a frame is drawn
