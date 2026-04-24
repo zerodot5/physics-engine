@@ -19,7 +19,7 @@ mouseX = 0
 mouseY = 0
 
 #initializing the window for pyglet
-window = pyglet.window.Window(width=1920, height=1080)
+window = pyglet.window.Window(width=1280, height=720)
 
 #for grid background
 grid_batch = pyglet.graphics.Batch()
@@ -184,9 +184,11 @@ def on_key_press(symbol, modifiers):
         vx = float(input("Enter the initial velocity: "))
         tempMass = float(input("Enter the mass for your planet: "))
         planets.append(astralBody(tempMass, math.sqrt(tempMass), mouseX, mouseY, vx, False))
+        print("added planet with mass " + str(tempMass) + " and velocity " + str(vx))
     if symbol == key.ENTER:
         tempMass = float(input("Enter the mass for your star: "))
         planets.append(astralBody(tempMass, math.sqrt(tempMass), mouseX, mouseY, 0, True))
+        print("added star with mass " + str(tempMass))
     if symbol == key.P:
         if tick:
             tick = False
@@ -200,6 +202,15 @@ def on_key_press(symbol, modifiers):
     if symbol == key.C:
         planets.clear()
         print("cleared planets")
+    if symbol == key.G:
+        global G
+        G = float(input("Enter the gravity coefficient (default is 2000): "))
+        print("updated gravity coefficient to " + str(G))
+    if symbol == key.T:
+        global dt
+        dt = float(input("Enter the time step (default is 0.5): "))
+        print("updated time step to " + str(dt))
+
 
 @window.event
 #whenever a frame is drawn
