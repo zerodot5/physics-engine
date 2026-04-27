@@ -12,7 +12,7 @@ planets = []
 planetIndex = 0
 
 G = float(input("Enter the gravity coefficient (default is 2000): "))
-dt = float(input("Enter the time step (default is 0.5): "))
+dt = float(input("Enter the time step (default is 0.1): "))
 tick = True
 
 #mouse variables just in case
@@ -281,7 +281,7 @@ def on_key_press(symbol, modifiers):
         print("updated gravity coefficient to " + str(G))
     if symbol == key.T:
         global dt
-        dt = float(input("Enter the time step (default is 0.5): "))
+        dt = float(input("Enter the time step (default is 0.1): "))
         print("updated time step to " + str(dt))
     if symbol == key.Z:
         zoom = zoom + 0.1
