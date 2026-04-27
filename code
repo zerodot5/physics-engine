@@ -206,10 +206,6 @@ def on_key_press(symbol, modifiers):
         tempMass = float(input("Enter the mass for your star: "))
         planets.append(astralBody(tempMass, math.sqrt(tempMass), mouseX, mouseY, 0, True))
         print("added star with mass " + str(tempMass))
-    #focusing on planets 
-    if symbol == key.TAB:
-        print("planets:")
-
     if symbol == key.P:
         if tick:
             tick = False
