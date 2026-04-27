@@ -7,24 +7,32 @@ import math
 from pyglet import shapes
 from pyglet.window import key
 
-#initializing the list of planets, gravity coefficient, and our timestep (also our pause toggle)
+#initializing the list of planets, gravity coefficient, and our timestep (also our pause toggle) (also also our focused planet index)
 planets = []
+planetIndex = 0
 
 G = float(input("Enter the gravity coefficient (default is 2000): "))
 dt = float(input("Enter the time step (default is 0.5): "))
 tick = True
 
-#stable mouse variables just in case
+#mouse variables just in case
 mouseX = 0
 mouseY = 0
 
+#camera variables
 global cameraX
 global cameraY
 cameraX = 0
 cameraY = 0
 
-#zoom variable for later use
+#zoom variable
+global zoom
 zoom = 1.0
+
+#planetFocus mode
+planetMode = False 
+#i lowkey dont remember why i have this but im scared to get rid of it
+i = 0
 
 #initializing the window for pyglet
 window = pyglet.window.Window(width=1280, height=720)
@@ -43,7 +51,7 @@ class astralBody():
 
     def __init__(self, mass, radius, x, y, velocity, fixed):
         self.fixed = fixed
-        self.batch = pyglet.graphics.Batch()
+        #storing trail positions in world space instead of screen space so camera movement doesnt rotate them
         self.trailDots = []
         self.max_trail = 500
         self.vx = velocity
@@ -52,12 +60,24 @@ class astralBody():
         self.y = y 
         self.mass = mass
         self.radius = radius
-        self.circle = shapes.Circle(x + cameraX, y + cameraX, radius*zoom, batch=self.batch)
+        #no longer using a batch since trails are drawn manually each frame
+        self.circle = shapes.Circle((x - cameraX) * zoom + centerX, (y - cameraY) * zoom + centerY, radius*zoom)
         self.color = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
         self.circle.color = self.color
 
     def draw(self):
-        self.batch.draw()
+        #converting world position to screen position before drawing
+        self.circle.x = (self.x - cameraX) * zoom + centerX
+        self.circle.y = (self.y - cameraY) * zoom + centerY
+        self.circle.draw()
+
+        #converting each trail dot from world space to screen space every frame so they stay correct when camera moves
+        for (wx, wy) in self.trailDots:
+            sx = (wx - cameraX) * zoom + centerX
+            sy = (wy - cameraY) * zoom + centerY
+            dot = shapes.Circle(sx, sy, 1.5)
+            dot.color = self.color
+            dot.draw()
 
 #for grid background
 def create_grid():
@@ -122,7 +142,6 @@ def physicFunction():
             #avoiding singularity
             distance = math.sqrt(dx**2 + dy**2)
 
-
             if distance == 0:
                 continue
 
@@ -158,8 +177,8 @@ def physicFunction():
                 bodyB.ay -= force * dy / bodyB.mass
 
     for body in to_remove:
-                if body in planets:
-                    planets.remove(body)
+        if body in planets:
+            planets.remove(body)
 
     for body in planets:
         if not body.fixed:
@@ -171,18 +190,17 @@ def physicFunction():
             body.x += body.vx * dt 
             body.y += body.vy * dt 
 
-            #actually changing the circle's position to match the new x and y
-            body.circle.x = (body.x - cameraX - centerX) * zoom + centerX 
-            body.circle.y = (body.y - cameraY - centerY) * zoom + centerY
+        #actually changing the circle's position to match the new x and y
+        body.circle.x = (body.x - cameraX) * zoom + centerX
+        body.circle.y = (body.y - cameraY) * zoom + centerY
 
-        dot = shapes.Circle((body.x - centerX + cameraX) * zoom + centerX, (body.y - centerY + cameraY) * zoom + centerY,1.5,batch=body.batch)   
-        dot.color = body.color
+        #storing the world position of the trail dot instead of a screen space shape so it stays correct when the camera moves
+        dot_world_pos = (body.x, body.y)
         if not body.fixed:
-            body.trailDots.append(dot)
+            body.trailDots.append(dot_world_pos)
 
         if len(body.trailDots) > body.max_trail:
-            old = body.trailDots.pop(0)
-            old.delete()
+            body.trailDots.pop(0)
 
 #initializing the window and drawing the objects and labels
 @window.event
@@ -191,21 +209,59 @@ def on_mouse_motion(x, y, dx, dy):
     mouseX = x
     mouseY = y
 
-current = 0
-
 @window.event
 def on_key_press(symbol, modifiers):
     global cameraX, cameraY
-    global tick;
+    global tick
+    global zoom
+
     if symbol == key.SPACE:
         vx = float(input("Enter the initial velocity: "))
         tempMass = float(input("Enter the mass for your planet: "))
-        planets.append(astralBody(tempMass, math.sqrt(tempMass), mouseX, mouseY, vx, False))
+        planets.append(astralBody(tempMass, math.sqrt(tempMass), (mouseX - centerX) / zoom + cameraX, (mouseY - centerY) / zoom + cameraY, vx, False))
         print("added planet with mass " + str(tempMass) + " and velocity " + str(vx))
     if symbol == key.ENTER:
         tempMass = float(input("Enter the mass for your star: "))
-        planets.append(astralBody(tempMass, math.sqrt(tempMass), mouseX, mouseY, 0, True))
+        planets.append(astralBody(tempMass, math.sqrt(tempMass), (mouseX - centerX) / zoom + cameraX, (mouseY - centerY) / zoom + cameraY, 0, True))
         print("added star with mass " + str(tempMass))
+    #focusing on planets 
+    
+    global planetMode
+    global i 
+    global planetIndex
+    
+    if symbol == key.TAB:
+        planetMode = not planetMode
+        if planetMode and len(planets) > 0:
+            target = planets[planetIndex]
+            cameraX = target.x
+            cameraY = target.y
+        print("planet focus mode", "enabled" if planetMode else "disabled")
+        if not planetMode:
+            #resetting camera to origin
+            cameraX = 0
+            cameraY = 0
+            for planet in planets:
+                planet.trailDots = []
+                planet.circle.x = (planet.x - cameraX) * zoom + centerX 
+                planet.circle.y = (planet.y - cameraY) * zoom + centerY
+
+    if symbol == key.Q and planetMode and len(planets) > 0:
+        #cycling to the previous planet
+        planetIndex = (planetIndex - 1) % len(planets)
+        for planet in planets:
+            planet.trailDots = []
+            planet.circle.x = (planet.x - cameraX) * zoom + centerX 
+            planet.circle.y = (planet.y - cameraY) * zoom + centerY
+
+    if symbol == key.E and planetMode and len(planets) > 0:
+        #cycling to the next planet
+        planetIndex = (planetIndex + 1) % len(planets)
+        for planet in planets:
+            planet.trailDots = []
+            planet.circle.x = (planet.x - cameraX) * zoom + centerX 
+            planet.circle.y = (planet.y - cameraY) * zoom + centerY
+
     if symbol == key.P:
         if tick:
             tick = False
@@ -227,7 +283,6 @@ def on_key_press(symbol, modifiers):
         global dt
         dt = float(input("Enter the time step (default is 0.5): "))
         print("updated time step to " + str(dt))
-    global zoom
     if symbol == key.Z:
         zoom = zoom + 0.1
         for planet in planets:
@@ -245,37 +300,30 @@ def on_key_press(symbol, modifiers):
             for line in grid_lines:
                 line.width = int(1 * zoom)
     if symbol == key.LEFT:
-        cameraX += 20
-        for planet in planets:
-            planet.trailDots = []
-            planet.circle.x = (planet.x - centerX) * zoom + centerX + cameraX
-            planet.circle.y = (planet.y - centerY) * zoom + centerY + cameraY
+        cameraX -= 20 / zoom
     if symbol == key.RIGHT:
-        cameraX -= 20
-        for planet in planets:
-            planet.trailDots = []
-            planet.circle.x = (planet.x - centerX) * zoom + centerX + cameraX
-            planet.circle.y = (planet.y - centerY) * zoom + centerY + cameraY
+        cameraX += 20 / zoom
     if symbol == key.UP:
-        cameraY -= 20
-        for planet in planets:
-            planet.trailDots = []
-            planet.circle.x = (planet.x - centerX) * zoom + centerX + cameraX
-            planet.circle.y = (planet.y - centerY) * zoom + centerY + cameraY
+        cameraY += 20 / zoom
     if symbol == key.DOWN:
-        cameraY += 20
-        for planet in planets:
-            planet.trailDots = []
-            planet.circle.x = (planet.x - centerX) * zoom + centerX + cameraX
-            planet.circle.y = (planet.y - centerY) * zoom + centerY + cameraY
-
+        cameraY -= 20 / zoom
 
 @window.event
 #whenever a frame is drawn
 def on_draw():
+    global cameraX, cameraY
+
     window.clear()
     grid_batch.draw()
+
     physicFunction()
+
+    #use the world position as the camera position
+    if planetMode and len(planets) > 0:
+        target = planets[planetIndex]
+        cameraX = target.x
+        cameraY = target.y
+
     draw_crosshair()
     for planet in planets:
         planet.draw()
